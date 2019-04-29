@@ -178,6 +178,7 @@ def files_modified(manifest1, manifest2):
         man1dict, man2dict = man1.get(url_key), man2.get(url_key)
         if any([man1dict.get(f) != man2dict.get(f) for f in fields]):
             return True
+    return False
 
 
 def update_dc_version(metadata):
@@ -190,20 +191,23 @@ def update_dc_version(metadata):
 
 
 def update_metadata(scraped_metadata, prev_metadata, user_metadata):
-    if prev_metadata:
-        metadata = copy.deepcopy(scraped_metadata or {})
+    if not scraped_metadata and not prev_metadata:
+        raise ValueError('Must provide metadata for a new or existing entry')
+
+    if scraped_metadata and prev_metadata:
+        metadata = copy.deepcopy(scraped_metadata)
 
         files_updated = files_modified(scraped_metadata.get('files'),
-                                       metadata.get('files'))
+                                       prev_metadata.get('files'))
         if files_updated:
-            # If files have been modified, don't carryover metadata fields
             update_dc_version(metadata)
         metadata['files'] = carryover_old_file_metadata(
             scraped_metadata.get('files'),
             prev_metadata.get('files')
         )
     else:
-        metadata = scraped_metadata
+        metadata = copy.deepcopy(scraped_metadata or prev_metadata)
+
     if user_metadata:
         validate_user_provided_metadata(user_metadata)
         for field_name, value in user_metadata.items():
