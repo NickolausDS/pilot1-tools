@@ -25,9 +25,9 @@ def get_pandas_field_metadata(pandas_col_metadata, field_name):
         'name': field_name,
         'type': 'string' if str(pmeta.dtype) == 'object' else str(pmeta.dtype),
         'count': int(pmeta['count']),
-        'top': pmeta['top'],
 
         # string statistics
+        'top': pmeta.get('top', numpy.nan),
         'unique': pmeta.get('unique', numpy.nan),
         'frequency': pmeta.get('freq', numpy.nan),
 

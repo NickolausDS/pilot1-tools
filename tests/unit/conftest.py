@@ -1,15 +1,15 @@
 import pytest
 import os
-import json
-import uuid
 import copy
 import globus_sdk
 from unittest.mock import Mock
 from .mocks import (MemoryStorage, MOCK_TOKEN_SET, GlobusTransferTaskResponse,
-                    ANALYSIS_FILE_BASE_DIR, CLIENT_FILE_BASE_DIR)
+                    ANALYSIS_FILE_BASE_DIR)
+
 
 from pilot.client import PilotClient
 import pilot
+from pilot.search import scrape_metadata
 
 
 @pytest.fixture
@@ -26,7 +26,9 @@ def mock_tokens():
 def mock_config(monkeypatch):
 
     class MockConfig(pilot.config.Config):
-        data = {}
+        data = {
+            'profile': {'name': 'John Doe'}
+        }
 
         def save(self, data):
             self.data = {str(k): v for k, v in data.items()}
@@ -50,6 +52,11 @@ def numbers_tsv():
 
 
 @pytest.fixture
+def strings_tsv():
+    return os.path.join(ANALYSIS_FILE_BASE_DIR, 'strings.tsv')
+
+
+@pytest.fixture
 def mock_transfer_client(monkeypatch):
     st = Mock()
     monkeypatch.setattr(globus_sdk.TransferClient, 'submit_transfer', st)
@@ -59,7 +66,7 @@ def mock_transfer_client(monkeypatch):
 
 
 @pytest.fixture
-def mock_auth_pilot_cli(mock_transfer_client):
+def mock_auth_pilot_cli(mock_transfer_client, mock_config):
     """
     Returns a mock logged in pilot client. Storage is mocked with a custom
     object, so this does behave slightly differently than the real client.
@@ -84,29 +91,10 @@ def mock_auth_pilot_cli(mock_transfer_client):
 
 
 @pytest.fixture
-def mock_pc_existing_search_entry(mock_auth_pilot_cli):
-    fname = os.path.join(CLIENT_FILE_BASE_DIR, 'search_entry_v1.json')
-    with open(fname) as fh:
-        entry_json = json.load(fh)
-    print(entry_json)
+def mock_pc_w_entry(mock_auth_pilot_cli, mixed_tsv):
+    entry_json = scrape_metadata(mixed_tsv, None, {})
     mock_auth_pilot_cli.get_search_entry.return_value = entry_json
     return mock_auth_pilot_cli
-
-
-@pytest.fixture
-def mock_new_file_metadata(mock_auth_pilot_cli):
-    meta = {
-        'dc': {'version': '1',
-               'dates':
-                   [
-                       {'date': '2019-03-05T17:04:10.315060Z',
-                        'dateType': 'Created'}
-                   ]
-               },
-        'files': {[
-
-        ]}
-    }
 
 
 @pytest.fixture
