@@ -22,6 +22,7 @@ def test_upload(mock_command_pilot_cli):
 
 
 def test_upload_gcp_log(mock_command_pilot_cli, mock_config):
+    mock_config.data['profile'] = {'name': 'Ada Lovelace'}
     test_file = os.path.join(COMMANDS_FILE_BASE_DIR,
                              'test_file_zero_length.txt')
     m_file = os.path.join(COMMANDS_FILE_BASE_DIR,
