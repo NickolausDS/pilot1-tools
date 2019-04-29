@@ -5,7 +5,10 @@ import globus_sdk
 import urllib
 from globus_sdk import AuthClient, SearchClient, TransferClient
 from fair_research_login import (NativeClient, LoadError)
+from pilot.search import (scrape_metadata, update_metadata, gen_gmeta,
+                          files_modified)
 from pilot.config import config
+from pilot.exc import NoEntryToUpdate, ContentMismatch
 
 
 class PilotClient(NativeClient):
@@ -167,6 +170,50 @@ class PilotClient(NativeClient):
             return self.gsearch.delete_subject(index, subject)
         else:
             return self.gsearch.delete_entry(index, subject, entry_id=entry_id)
+
+    def update_entry(self, shortpath, user_metadata, dataframe=None,
+                     update_content=False, test=False, dry_run=False,
+                     no_analyze=False):
+
+        fname, dname = os.path.basename(shortpath), os.path.dirname(shortpath)
+        prev_metadata = self.get_search_entry(fname, dname, test)
+
+        info = {
+            'updated_entry': False,
+            'pre_existing_record': True if prev_metadata else False,
+            'dataframe_changed': False,
+            'subject_url': self.get_subject_url(fname, dname, test),
+            'https_url': self.get_globus_http_url(fname, dname, test),
+            'version': None,
+            'metadata': None
+        }
+
+        if not prev_metadata:
+            raise NoEntryToUpdate()
+
+        dataframe_meta = {}
+        if dataframe is not None:
+            dataframe_meta = scrape_metadata(dataframe, info['https_url'],
+                                             no_analyze, test)
+            if prev_metadata:
+                info['dataframe_changed'] = files_modified(
+                    dataframe_meta['files'], prev_metadata['files']
+                )
+
+        info['metadata'] = update_metadata(dataframe_meta, prev_metadata,
+                                           user_metadata)
+        gmeta = gen_gmeta(info['subject_url'], self.GROUP, info['metadata'])
+        info['version'] = info['metadata']['dc']['version']
+
+        if info['dataframe_changed'] and not update_content:
+            raise ContentMismatch(dataframe_info=info)
+
+        if dry_run:
+            return info
+
+        self.ingest_entry(gmeta, test)
+        info['updated_entry'] = True
+        return info
 
     def upload(self, dataframe, destination, test=False):
         filename = os.path.basename(dataframe)
