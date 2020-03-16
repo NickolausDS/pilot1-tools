@@ -75,19 +75,8 @@ class Context(config.ConfigSection):
     def set_context(self, context):
         if self.current == context:
             return
-        try:
-            self.current = context
-            self.update()
-        except globus_sdk.exc.SearchAPIError as sapie:
-            if sapie.code == 'NotFound.Generic':
-                self.client.project.purge()
-                raise exc.PilotClientException(
-                    'No existing context data found for {}.'
-                    ''.format(self.get_value('manifest_subject')))
-            else:
-                log.exception(sapie)
-                raise exc.PilotClientException('Unexpected Error {}'.format(
-                                               str(sapie)))
+        self.current = context
+        self.update()
 
     def get_value(self, field, context=None):
         return self.get_context(context).get(field)
@@ -99,8 +88,20 @@ class Context(config.ConfigSection):
         index = index or self.get_value('manifest_index')
         log.debug('Fetching manifest {} from index {}'.format(sub, index))
         sc = self.client.get_search_client()
-        result = sc.get_subject(index, sub, result_format_version='2017-09-01')
-        manifest = result.data['content'][0]
+        try:
+            result = sc.get_subject(index, sub,
+                                    result_format_version='2017-09-01')
+            manifest = result.data['content'][0]
+        except globus_sdk.exc.SearchAPIError as sapie:
+            if sapie.code == 'NotFound.Generic':
+                self.client.project.purge()
+                raise exc.PilotClientException(
+                    'No existing context data found for {}.'
+                    ''.format(self.get_value('manifest_subject'))) from None
+            else:
+                log.exception(sapie)
+                raise exc.PilotClientException('Unexpected Error {}'.format(
+                    str(sapie)))
         group = self.get_value('projects_group')
         if group and update_groups_cache is True:
             log.debug('Updating groups...')
